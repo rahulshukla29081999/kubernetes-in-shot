@@ -1,1 +1,137 @@
+# Environment setup
+docker ps
+kubectl version
+kind version
+docker --version
+clear
 
+# Kind cluster creation
+mkdir kind_cluster
+cd kind_cluster/
+vim config.yml
+kind create cluster --name=tws-cluster --config=config.yml
+kubectl cluster-info --context kind-tws-cluster
+kubectl get nodes
+
+# Namespace & Pod
+kubectl get namespaces
+kubectl get pods
+kubectl get pods -n kube-system
+kubectl create ns nginx
+kubectl run nginx --image=nginx -n nginx
+kubectl get pods -n nginx
+kubectl delete pod nginx -n nginx
+
+# YAML way
+vim namespace.yml
+kubectl apply -f namespace.yml
+vim pod.yml
+kubectl apply -f pod.yml
+kubectl get pods -n nginx
+kubectl exec -it nginx-pod -n nginx -- bash
+kubectl describe pod nginx-pod -n nginx
+
+# Deployment & Scaling
+vim deployment.yml
+kubectl apply -f deployment.yml
+kubectl get deployment -n nginx
+kubectl scale deployment/nginx-deployment -n nginx --replicas=5
+kubectl scale deployment/nginx-deployment -n nginx --replicas=1
+
+# Rolling update
+kubectl set image deployment/nginx-deployment -n nginx nginx=nginx:1.26.2
+kubectl set image deployment/nginx-deployment -n nginx nginx=nginx:latest
+
+# ReplicaSet
+cp deployment.yml replicasets.yml
+vim replicasets.yml
+kubectl apply -f replicasets.yml
+kubectl get replicasets -n nginx
+
+# DaemonSet
+vim daemonsets.yml
+kubectl apply -f daemonsets.yml
+kubectl get pods -n nginx -o wide
+
+# Job
+vim job.yml
+kubectl apply -f job.yml
+kubectl get jobs -n nginx
+kubectl logs -n nginx <job-pod-name>
+
+# CronJob
+vim cron-job.yml
+kubectl apply -f cron-job.yml
+kubectl get cronjob -n nginx
+
+# Service & Port Forward
+vim service.yml
+kubectl apply -f service.yml
+kubectl get svc -n nginx
+kubectl port-forward service/nginx-service -n nginx 8081:80 --address=0.0.0.0
+
+# Ingress
+kubectl apply -f https://kind.sigs.k8s.io/examples/ingress/deploy-ingress-nginx.yaml
+kubectl get svc -n ingress-nginx
+vim ingress.yml
+kubectl apply -f ingress.yml
+kubectl port-forward service/ingress-nginx-controller -n ingress-nginx 8080:80 --address=0.0.0.0
+
+# Persistent Volume & PVC
+vim persistentVolume.yml
+kubectl apply -f persistentVolume.yml
+kubectl get pv
+vim persistentVolumeClaim.yml
+kubectl apply -f persistentVolumeClaim.yml
+kubectl get pvc
+
+# Metrics Server
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+kubectl -n kube-system edit deployment metrics-server
+kubectl -n kube-system rollout restart deployment metrics-server
+kubectl top node
+kubectl top pod
+
+# Taints & Tolerations
+kubectl taint node tws-cluster-worker prod=true:NoSchedule
+kubectl taint node tws-cluster-worker prod=true:NoSchedule-
+
+# Apache + HPA
+mkdir apache && cd apache
+kubectl apply -f namespace.yml
+kubectl apply -f deployment.yml
+kubectl apply -f service.yml
+kubectl scale deployment apache-deployment -n apache --replicas=3
+vim hpa.yml
+kubectl apply -f hpa.yml
+kubectl get hpa -n apache
+kubectl run -it load-generator --image=busybox -n apache -- /bin/sh
+
+# VPA
+git clone https://github.com/kubernetes/autoscaler.git
+cd autoscaler/vertical-pod-autoscaler
+./hack/vpa-up.sh
+vim vpa.yml
+kubectl apply -f vpa.yml
+kubectl get vpa -n apache
+
+# MySQL StatefulSet
+mkdir mysql && cd mysql
+kubectl apply -f namespace.yml
+kubectl apply -f service.yml
+kubectl apply -f statefulset.yml
+kubectl get pods -n mysql
+kubectl exec -it mysql-statefulset-0 -n mysql -- bash
+
+# Django Notes App
+git clone https://github.com/LondheShubham153/django-notes-app.git
+cd django-notes-app
+git checkout dev
+docker build -t notes-app-k8s .
+docker login
+docker tag notes-app-k8s:latest <your-dockerhub-username>/notes-app-k8s:latest
+docker push <your-dockerhub-username>/notes-app-k8s:latest
+kubectl apply -f namespace.yml
+kubectl apply -f deployment.yml
+kubectl apply -f service.yml
+kubectl port-forward service/notes-app-service -n notes-app 8000:8000 --address=0.0.0.0
